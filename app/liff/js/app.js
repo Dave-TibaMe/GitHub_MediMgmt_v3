@@ -1,11 +1,10 @@
-// js/app.js (2025-07-26 全面重構升級版 - 已修正 API 路徑重複問題)
+// js/app.js (修正用藥列表顯示問題)
 
 // --- 全域設定 ---
-// 確保 config.js 已定義 window.APP_CONFIG
-const API_ROOT = window.APP_CONFIG.API_ROOT; // 假設 API_ROOT 已包含 /api
+const API_ROOT = window.APP_CONFIG.API_ROOT;
 const LIFF_ID = window.APP_CONFIG.LIFF_ID;
 
-let user_id = null; // 用來儲存 LIFF 使用者 ID
+let user_id = null;
 
 // --- 初始化 ---
 window.onload = async () => {
@@ -14,24 +13,62 @@ window.onload = async () => {
         await liff.init({ liffId: LIFF_ID });
         if (!liff.isLoggedIn()) {
             liff.login();
-            return; // 登入後會重新導向，中斷後續執行
+            return;
         }
         const profile = await liff.getProfile();
         user_id = profile.userId;
         console.log("LIFF 初始化成功，User ID:", user_id);
     } catch (e) {
         console.error("LIFF 初始化失敗:", e);
-        user_id = "test_user_001"; // 提供測試用 ID
+        user_id = "test_user_001";
         showToast("LIFF 初始化失敗，正以測試模式運行", "warning");
     }
 
     // 2. 綁定所有事件監聽器
     bindEvents();
 
-    // 3. 根據 URL 參數決定顯示哪個頁面
+    // 3. 根據 URL 參數決定顯示哪個頁面 (處理 LIFF 參數)
     const urlParams = new URLSearchParams(window.location.search);
-    const view = urlParams.get('view') || 'scan'; // 預設顯示掃描頁
-    const pageId = view === 'medication' ? 'page-medication-list' : `page-${view}`;
+    let view = 'scan'; // 預設值
+    
+    // 檢查是否有直接的 view 參數
+    if (urlParams.has('view')) {
+        view = urlParams.get('view');
+        console.log('直接從 view 參數取得:', view);
+    }
+    // 檢查 LIFF 的 liff.state 參數
+    else if (urlParams.has('liff.state')) {
+        const liffState = decodeURIComponent(urlParams.get('liff.state'));
+        console.log('LIFF State 原始值:', urlParams.get('liff.state'));
+        console.log('LIFF State 解碼後:', liffState);
+        
+        // 解析 liff.state 中的參數（格式可能是 "?view=medication"）
+        if (liffState.startsWith('?')) {
+            const stateParams = new URLSearchParams(liffState);
+            if (stateParams.has('view')) {
+                view = stateParams.get('view');
+                console.log('從 liff.state 取得 view:', view);
+            }
+        }
+    }
+    
+    // 根據 view 參數對應到正確的頁面 ID
+    let pageId;
+    switch(view) {
+        case 'scan':
+            pageId = 'page-scan';
+            break;
+        case 'medication':
+            pageId = 'page-medication-list';
+            break;
+        case 'alert':
+            pageId = 'page-alert';
+            break;
+        default:
+            pageId = 'page-scan'; // 預設顯示掃描頁面
+    }
+    
+    console.log(`最終 view: ${view}, 對應頁面: ${pageId}`);
     showPage(pageId);
 
     // 預先載入對應頁面的資料
@@ -126,10 +163,9 @@ async function handleUploadAndRecognize() {
     formData.append('file', fileInput.files[0]);
     formData.append('user_id', user_id);
     const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Taipei';
-    formData.append('timezone', userTimezone);
+    formData.append('user_timezone', userTimezone);
 
     try {
-        // 【修正】移除重複的 /api。路徑直接從 /prescription 開始
         const res = await fetch(`${API_ROOT}/prescription/recognize`, {
             method: 'POST',
             body: formData
@@ -221,23 +257,39 @@ async function saveMedicationFromForm() {
     const medicationsPayload = [];
 
     medicationCards.forEach(card => {
-        const medication = {};
+        const medication = {
+            user_id: user_id
+        };
+        
         card.querySelectorAll('input[data-field]').forEach(input => {
             const field = input.dataset.field;
-            medication[field] = input.value || null; // 將空字串轉為 null
+            let value = input.value || null;
+            
+            if ((field === 'start_date' || field === 'end_date') && value === '') {
+                value = null;
+            }
+            
+            medication[field] = value;
         });
-        medicationsPayload.push(medication);
+        
+        if (medication.name && medication.name.trim() !== '') {
+            medicationsPayload.push(medication);
+        }
     });
 
+    if (medicationsPayload.length === 0) {
+        showToast('請至少填寫一個藥物的名稱！', 'warning');
+        showLoading(false);
+        return;
+    }
+
     try {
-        // 【修正】在路徑結尾加上斜線 "/"，以匹配 FastAPI 的路由定義
+        console.log('準備傳送的資料:', JSON.stringify(medicationsPayload, null, 2));
+        
         const res = await fetch(`${API_ROOT}/medications/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                user_id: user_id,
-                medications: medicationsPayload
-            })
+            body: JSON.stringify(medicationsPayload)
         });
 
         if (!res.ok) {
@@ -245,6 +297,9 @@ async function saveMedicationFromForm() {
             throw new Error(errorData.detail || '儲存失敗');
         }
 
+        const savedMedications = await res.json();
+        console.log('成功儲存藥物:', savedMedications);
+        
         showToast('用藥紀錄已成功儲存！', 'success');
         showPage('page-medication-list');
         await loadMedications();
@@ -257,45 +312,165 @@ async function saveMedicationFromForm() {
     }
 }
 
-// --- 其他頁面功能函式 ---
+// --- 用藥列表相關函式 ---
 
 async function loadMedications() {
-    if (!user_id) return;
+    if (!user_id) {
+        console.error('無法載入用藥清單：user_id 為空');
+        showToast('無法載入用藥清單：使用者資訊缺失', 'error');
+        return;
+    }
+    
     showLoading(true, '正在載入用藥清單...');
+    
     try {
-        // 【修正】移除重複的 /api。路徑直接從 /medications 開始
+        console.log(`正在載入使用者 ${user_id} 的用藥清單...`);
+        
         const response = await fetch(`${API_ROOT}/medications/user/${user_id}`);
+        
         if (!response.ok) {
-            throw new Error(`載入失敗: ${response.status}`);
+            const errorData = await response.json().catch(() => ({ detail: `載入失敗: ${response.status}` }));
+            throw new Error(errorData.detail || `載入失敗: ${response.status}`);
         }
+        
         const medications = await response.json();
+        console.log('成功載入用藥清單:', medications);
+        
         displayMedicationList(medications);
+        
     } catch (error) {
         console.error("載入用藥清單失敗:", error);
-        showToast(error.message, 'error');
+        showToast(`載入用藥清單失敗: ${error.message}`, 'error');
     } finally {
         showLoading(false);
     }
 }
 
 function displayMedicationList(medications) {
-    const container = document.getElementById('medication-list-container');
-    if (!container) return;
-    container.innerHTML = '';
-    if (!medications || medications.length === 0) {
-        container.innerHTML = '<p class="text-center text-gray-500">目前沒有用藥紀錄。</p>';
+    // 確保用藥管理頁面存在
+    let container = document.getElementById('medication-list-container');
+    
+    // 如果容器不存在，動態創建用藥管理頁面
+    if (!container) {
+        console.log('用藥管理頁面容器不存在，正在創建...');
+        createMedicationListPage();
+        container = document.getElementById('medication-list-container');
+    }
+    
+    if (!container) {
+        console.error('無法創建或找到用藥管理頁面容器');
         return;
     }
+    
+    container.innerHTML = '';
+    
+    if (!medications || medications.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-8">
+                <p class="text-gray-500 mb-4">目前沒有用藥紀錄</p>
+                <button onclick="showPage('page-scan')" class="btn-primary">
+                    新增用藥紀錄
+                </button>
+            </div>
+        `;
+        return;
+    }
+    
+    let listHtml = '<div class="medication-list space-y-4">';
+    
     medications.forEach(med => {
-        container.innerHTML += `
-            <div class="bg-white p-4 rounded-lg shadow mb-3">
-                <h3 class="text-lg font-bold">${med.name}</h3>
-                <p><strong>作用:</strong> ${med.effect}</p>
-                <p><strong>用法:</strong> ${med.dose}, ${med.frequency}</p>
-                <p><strong>期間:</strong> ${med.start_date} ~ ${med.end_date || '長期'}</p>
+        const statusClass = med.status === '已停藥' ? 'bg-gray-100' : 'bg-white';
+        const statusText = med.status === '已停藥' ? '已停藥' : '進行中';
+        
+        listHtml += `
+            <div class="${statusClass} p-4 rounded-lg shadow border">
+                <div class="flex justify-between items-start mb-2">
+                    <h3 class="text-lg font-bold text-blue-600">${med.name || '未知藥物'}</h3>
+                    <span class="px-2 py-1 text-xs rounded ${med.status === '已停藥' ? 'bg-gray-200 text-gray-600' : 'bg-green-100 text-green-800'}">${statusText}</span>
+                </div>
+                <div class="space-y-1 text-sm text-gray-700">
+                    <p><strong>作用:</strong> ${med.effect || '未指定'}</p>
+                    <p><strong>劑量:</strong> ${med.dose || '未指定'}</p>
+                    <p><strong>頻率:</strong> ${med.frequency || '未指定'}</p>
+                    <p><strong>服藥期間:</strong> ${med.start_date || '未指定'} ~ ${med.end_date || '長期'}</p>
+                </div>
+                <div class="mt-3 flex space-x-2">
+                    <button onclick="editMedication(${med.id})" class="btn-secondary text-xs">編輯</button>
+                    <button onclick="deleteMedication(${med.id})" class="btn-danger text-xs">刪除</button>
+                </div>
             </div>
         `;
     });
+    
+    listHtml += '</div>';
+    
+    // 添加新增按鈕
+    listHtml += `
+        <div class="mt-6 text-center">
+            <button onclick="showPage('page-scan')" class="btn-primary">
+                新增用藥紀錄
+            </button>
+        </div>
+    `;
+    
+    container.innerHTML = listHtml;
+}
+
+function createMedicationListPage() {
+    // 檢查是否已經存在用藥管理頁面
+    let medicationPage = document.getElementById('page-medication-list');
+    
+    if (!medicationPage) {
+        // 創建新的用藥管理頁面
+        medicationPage = document.createElement('div');
+        medicationPage.id = 'page-medication-list';
+        medicationPage.className = 'page';
+        medicationPage.style.display = 'none';
+        
+        medicationPage.innerHTML = `
+            <h3>用藥管理</h3>
+            <div id="medication-list-container">
+                <p class="text-center text-gray-500">載入中...</p>
+            </div>
+        `;
+        
+        // 添加到主容器中
+        const mainContainer = document.querySelector('main');
+        if (mainContainer) {
+            mainContainer.appendChild(medicationPage);
+            console.log('成功創建用藥管理頁面');
+        } else {
+            console.error('找不到主容器，無法添加用藥管理頁面');
+        }
+    }
+}
+
+// 編輯和刪除藥物的函式（預留）
+function editMedication(medicationId) {
+    showToast(`編輯藥物功能尚未實作 (ID: ${medicationId})`, 'info');
+}
+
+async function deleteMedication(medicationId) {
+    if (!confirm('確定要刪除這筆用藥紀錄嗎？')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_ROOT}/medications/${medicationId}`, {
+            method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+            throw new Error('刪除失敗');
+        }
+        
+        showToast('用藥紀錄已刪除', 'success');
+        await loadMedications(); // 重新載入列表
+        
+    } catch (error) {
+        console.error('刪除藥物失敗:', error);
+        showToast('刪除失敗', 'error');
+    }
 }
 
 async function analyzeDrug() {

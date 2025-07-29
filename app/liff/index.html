@@ -8,6 +8,145 @@
     <script src="https://static.line-scdn.net/liff/edge/2.1/sdk.js"></script>
     <!-- 預留全域設定 -->
     <script src="js/config.js"></script>
+    <style>
+        .page { display: none; }
+        .page.active { display: block; }
+        
+        .btn-primary {
+            background: #59c3c3;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 16px;
+            font-size: 15px;
+            cursor: pointer;
+            margin: 8px 4px;
+            transition: background 0.2s;
+        }
+        .btn-primary:hover { background: #348888; }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 13px;
+            cursor: pointer;
+            margin: 4px 2px;
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 13px;
+            cursor: pointer;
+            margin: 4px 2px;
+        }
+        
+        #loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #59c3c3;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            color: white;
+            font-size: 16px;
+        }
+        
+        .medication-list .border {
+            border: 1px solid #e5e7eb;
+        }
+        
+        .text-center { text-align: center; }
+        .text-gray-500 { color: #6b7280; }
+        .text-gray-600 { color: #4b5563; }
+        .text-gray-700 { color: #374151; }
+        .text-blue-600 { color: #2563eb; }
+        .text-green-800 { color: #166534; }
+        
+        .bg-gray-100 { background-color: #f3f4f6; }
+        .bg-gray-200 { background-color: #e5e7eb; }
+        .bg-green-100 { background-color: #dcfce7; }
+        
+        .space-y-1 > * + * { margin-top: 0.25rem; }
+        .space-y-4 > * + * { margin-top: 1rem; }
+        .space-x-2 > * + * { margin-left: 0.5rem; }
+        
+        .px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
+        .py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+        .py-8 { padding-top: 2rem; padding-bottom: 2rem; }
+        
+        .text-xs { font-size: 0.75rem; }
+        .text-sm { font-size: 0.875rem; }
+        .text-lg { font-size: 1.125rem; }
+        
+        .font-bold { font-weight: 700; }
+        .rounded { border-radius: 0.25rem; }
+        .rounded-lg { border-radius: 0.5rem; }
+        
+        .mb-2 { margin-bottom: 0.5rem; }
+        .mb-4 { margin-bottom: 1rem; }
+        .mt-3 { margin-top: 0.75rem; }
+        .mt-6 { margin-top: 1.5rem; }
+        
+        .flex { display: flex; }
+        .justify-between { justify-content: space-between; }
+        .items-start { align-items: flex-start; }
+        
+        .shadow { box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06); }
+        
+        input[type="text"], input[type="date"] {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            margin-top: 4px;
+        }
+        
+        label {
+            display: block;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 4px;
+        }
+        
+        .medication-card {
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 16px;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -30,24 +169,32 @@
                 <button id="btn-upload" class="btn-primary">辨識藥單</button>
             </div>
             
-            <!-- [新增] 分頁2：編輯用藥紀錄 (初始為隱藏) -->
-            <div id="page-medication-edit" class="page" style="display:none;">
+            <!-- 分頁2：編輯用藥紀錄 -->
+            <div id="page-medication-edit" class="page">
                 <h3>編輯用藥紀錄</h3>
                 <p class="description">請確認以下由 AI 辨識的資訊是否正確，您可以直接修改。</p>
                 
-                <!-- JavaScript 將會把動態生成的表單填入這裡 -->
                 <div id="medication-edit-form-container">
-                    <!-- 範例：辨識中的載入提示 -->
-                    <!-- <p>辨識結果載入中...</p> -->
+                    <!-- JavaScript 動態生成的表單會填入這裡 -->
                 </div>
             </div>
 
-            <!-- 其他既有分頁... -->
-            <div id="page-medication-list" class="page" style="display:none;">...</div>
-            <div id="page-alert-list" class="page" style="display:none;">...</div>
+            <!-- 分頁3：用藥管理 -->
+            <div id="page-medication-list" class="page">
+                <h3>用藥管理</h3>
+                <div id="medication-list-container">
+                    <p class="text-center text-gray-500">載入中...</p>
+                </div>
+            </div>
+
+            <!-- 分頁4：藥物警戒 -->
+            <div id="page-alert" class="page">
+                <h3>藥物警戒</h3>
+                <p>此功能尚未實作。</p>
+            </div>
         </main>
 
-        <!-- [新增] 全域載入動畫 (覆蓋層) -->
+        <!-- 全域載入動畫 -->
         <div id="loading-overlay" style="display: none;">
             <div class="spinner"></div>
             <p class="loading-text">載入中...</p>
