@@ -1,0 +1,42 @@
+/medication_project/
+│
+├── app/                      # 主程式目錄
+│   ├── main.py               # FastAPI 入口
+│   ├── api/                  # API 路由
+│   │   ├── alert.py          # 藥物警戒 API
+│   │   ├── medication.py     # 用藥管理 API
+│   │   ├── prescription.py   # 藥單掃描辨識 API
+│   │   ├── reminder.py       # 服藥提醒 API
+│   │   ├── user.py           # 用戶/個人資料 API
+│   │   └── terms.py          # 服務條款 API
+│   ├── config/               # 設定檔
+│   │   └── config.ini        # 所有API、資料庫設定
+│   ├── db/                   # 資料庫存取
+│   │   └── database.py       # SQLite 初始化與連線
+│   ├── services/             # 業務邏輯
+│   │   ├── germini_service.py# 串接 germini API
+│   │   ├── scheduler.py      # APScheduler 排程
+│   │   ├── timezone.py       # 時區處理
+│   │   └── alert_logic.py    # 藥物交互作用分析
+│   ├── models/               # 資料庫 ORM 定義
+│   │   ├── user.py           # 使用者資料模型
+│   │   ├── medication.py     # 用藥紀錄模型
+│   │   ├── reminder.py       # 提醒設定模型
+│   │   └── alert.py          # 藥物警戒模型
+│   ├── utils/                # 工具函式
+│   │   ├── ocr.py            # OCR工具（如有需要）
+│   │   ├── json_validator.py # JSON結構驗證
+│   │   └── config.py         # 讀取config.ini
+│   └── liff/                 # 前端LIFF專案
+│       ├── index.html
+│       ├── js/
+│       │   ├── app.js
+│       │   └── reminder.js
+│       ├── css/
+│       │   └── style.css
+│       └── assets/           # 圖片等資源
+│
+├── requirements.txt
+├── README.md
+└── deploy/                   # 部署腳本與設定
+    └── oraclecloud.yaml

@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+sqlalchemy
+pydantic
+apscheduler
+pytz
+requests
+python-multipart
+pillow
+pytesseract
+jsonschema
+line-bot-sdk

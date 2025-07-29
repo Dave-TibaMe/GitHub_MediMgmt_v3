@@ -1,0 +1,47 @@
+body {
+    font-family: 'Segoe UI', '微軟正黑體', Arial, sans-serif;
+    background: #f7fafc;
+    margin: 0;
+}
+.container {
+    max-width: 600px;
+    margin: 36px auto;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.05);
+    padding: 24px 32px;
+}
+h2, h3 {
+    color: #345987;
+}
+label {
+    font-weight: bold;
+    margin-right: 6px;
+}
+input[type=file] {
+    margin-right: 10px;
+}
+button {
+    background: #59c3c3;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 16px;
+    font-size: 15px;
+    cursor: pointer;
+    margin: 8px 0;
+    transition: background 0.2s;
+}
+button:hover {
+    background: #348888;
+}
+.med-card {
+    border: 1px solid #c3c8d1;
+    background: #f1f8fa;
+    padding: 12px;
+    border-radius: 8px;
+    margin: 8px 0;
+}
+hr {
+    margin: 32px 0 20px 0;
+}
