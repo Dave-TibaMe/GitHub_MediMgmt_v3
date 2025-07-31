@@ -244,27 +244,98 @@
             font-size: 14px;
             margin-bottom: 1rem;
         }
+
+        /* 导航标签样式 */
+        .nav-tabs {
+            display: flex;
+            border-bottom: 2px solid #e5e7eb;
+            margin-bottom: 20px;
+            background: #f8fafc;
+            border-radius: 8px 8px 0 0;
+            overflow: hidden;
+        }
+
+        .nav-tab {
+            flex: 1;
+            padding: 12px 16px;
+            background: #f8fafc;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #6b7280;
+            transition: all 0.2s;
+            border-bottom: 3px solid transparent;
+        }
+
+        .nav-tab:hover {
+            background: #e5e7eb;
+            color: #374151;
+        }
+
+        .nav-tab.active {
+            background: white;
+            color: #59c3c3;
+            border-bottom-color: #59c3c3;
+        }
+
+        /* 移动端响应式 */
+        @media (max-width: 768px) {
+            .nav-tabs {
+                flex-wrap: wrap;
+            }
+            
+            .nav-tab {
+                flex-basis: 50%;
+                font-size: 12px;
+                padding: 10px 8px;
+            }
+            
+            .checkbox-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
             <h2>智慧用藥管理系統</h2>
+            
+            <!-- 导航标签 -->
+            <div class="nav-tabs">
+                <button class="nav-tab active" onclick="showPageByView('scan')" id="tab-scan">藥單掃描</button>
+                <button class="nav-tab" onclick="showPageByView('medication')" id="tab-medication">用藥管理</button>
+                <button class="nav-tab" onclick="showPageByView('alert')" id="tab-alert">藥物警戒</button>
+                <button class="nav-tab" onclick="showPageByView('terms')" id="tab-terms">服務條款</button>
+            </div>
         </header>
         
         <main>
-            <!-- 分頁1：藥單掃描 (預設顯示) -->
-            <div id="page-scan" class="page">
+            <!-- 分頁1：藥單掃描 -->
+            <div id="page-scan" class="page active">
                 <h3>藥單掃描</h3>
-                <label for="prescriptionUpload" class="upload-label">選擇藥單照片</label>
+                <p class="description">請上傳您的處方箋或藥袋照片，系統將自動辨識藥物資訊。</p>
+                
+                <label for="prescriptionUpload" class="upload-label">📷 選擇藥單照片</label>
                 <input type="file" id="prescriptionUpload" accept="image/*" style="display:none;">
                 
                 <!-- 圖片預覽區 -->
                 <div id="image-preview-container" style="margin-top: 15px; display: none;">
-                    <img id="prescription-image-preview" src="#" alt="藥單預覽" style="max-width: 100%; border-radius: 8px;">
+                    <img id="prescription-image-preview" src="#" alt="藥單預覽" style="max-width: 100%; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                 </div>
 
-                <button id="btn-upload" class="btn-primary">辨識藥單</button>
+                <button id="btn-upload" class="btn-primary" style="width: 100%; margin-top: 15px;">🔍 開始辨識</button>
+                
+                <div class="mt-6 text-sm text-gray-600">
+                    <h4 class="font-bold mb-2">使用提示：</h4>
+                    <ul style="list-style-type: disc; margin-left: 20px;">
+                        <li>請確保照片清晰，光線充足</li>
+                        <li>藥物名稱和劑量資訊清楚可見</li>
+                        <li>支援 JPG、PNG 等常見圖片格式</li>
+                        <li>系統會自動辨識並提取藥物資訊</li>
+                    </ul>
+                </div>
             </div>
             
             <!-- 分頁2：編輯用藥紀錄 -->
@@ -280,6 +351,8 @@
             <!-- 分頁3：用藥管理 -->
             <div id="page-medication-list" class="page">
                 <h3>用藥管理</h3>
+                <p class="description">檢視和管理您目前的用藥紀錄。</p>
+                
                 <div id="medication-list-container">
                     <p class="text-center text-gray-500">載入中...</p>
                 </div>
@@ -288,6 +361,7 @@
             <!-- 分頁4：藥物警戒 -->
             <div id="page-alert" class="page">
                 <h3>藥物警戒</h3>
+                <p class="description">設定個人健康資訊，系統將分析可能的藥物交互作用。</p>
                 
                 <!-- 個人資料設定區塊 -->
                 <div class="alert-section">
@@ -295,7 +369,7 @@
                     
                     <!-- 飲食習慣 -->
                     <div class="profile-group mb-6">
-                        <h5 class="font-bold text-gray-700 mb-2">飲食習慣</h5>
+                        <h5 class="font-bold text-gray-700 mb-2">🍽️ 飲食習慣</h5>
                         <div class="checkbox-grid">
                             <label><input type="checkbox" id="diet_alcohol"> 酒精</label>
                             <label><input type="checkbox" id="diet_caffeine"> 咖啡因（咖啡、茶、巧克力）</label>
@@ -309,7 +383,7 @@
                     
                     <!-- 正在服用的保健食品/中藥 -->
                     <div class="profile-group mb-6">
-                        <h5 class="font-bold text-gray-700 mb-2">正在服用的保健食品/中藥</h5>
+                        <h5 class="font-bold text-gray-700 mb-2">💊 正在服用的保健食品/中藥</h5>
                         <div class="checkbox-grid">
                             <label><input type="checkbox" id="supp_st_johns_wort"> 聖約翰草</label>
                             <label><input type="checkbox" id="supp_ginkgo"> 銀杏</label>
@@ -325,7 +399,7 @@
                     
                     <!-- 個人病史 -->
                     <div class="profile-group mb-6">
-                        <h5 class="font-bold text-gray-700 mb-2">個人病史</h5>
+                        <h5 class="font-bold text-gray-700 mb-2">🏥 個人病史</h5>
                         <div class="checkbox-grid">
                             <label><input type="checkbox" id="history_asthma"> 氣喘</label>
                             <label><input type="checkbox" id="history_diabetes"> 糖尿病</label>
@@ -340,7 +414,7 @@
                     
                     <!-- 特殊生理狀況 -->
                     <div class="profile-group mb-6">
-                        <h5 class="font-bold text-gray-700 mb-2">特殊生理狀況</h5>
+                        <h5 class="font-bold text-gray-700 mb-2">👤 特殊生理狀況</h5>
                         <div class="checkbox-grid">
                             <label><input type="checkbox" id="condition_pregnancy"> 懷孕</label>
                             <label><input type="checkbox" id="condition_breastfeeding"> 哺乳</label>
@@ -350,23 +424,25 @@
                         </div>
                     </div>
                     
-                    <button id="btn-update-profile" class="btn-primary mb-4">更新個人資料</button>
+                    <button id="btn-update-profile" class="btn-primary mb-4" style="width: 100%;">💾 更新個人資料</button>
                 </div>
                 
                 <hr class="my-6">
                 
                 <!-- 藥物交互作用分析區塊 -->
                 <div class="analysis-section">
-                    <h4 class="text-lg font-bold text-blue-600 mb-4">藥物交互作用分析</h4>
-                    <button id="btn-analyze-interaction" class="btn-primary mb-4">開始分析</button>
+                    <h4 class="text-lg font-bold text-blue-600 mb-4">🔬 藥物交互作用分析</h4>
+                    <p class="description mb-4">基於您的用藥紀錄和個人資料，進行全面的藥物安全性分析。</p>
+                    
+                    <button id="btn-analyze-interaction" class="btn-primary mb-4" style="width: 100%;">🚀 開始分析</button>
                     
                     <!-- 分析結果顯示區域 -->
                     <div id="analysis-result-container" style="display: none;">
                         <div class="bg-gray-50 p-4 rounded-lg">
-                            <h5 class="font-bold text-gray-700 mb-2">分析結果</h5>
+                            <h5 class="font-bold text-gray-700 mb-2">📊 分析結果</h5>
                             <div id="analysis-result-content" class="text-gray-700 whitespace-pre-wrap mb-4"></div>
                             <div class="text-sm text-red-600 font-semibold">
-                                <strong>免責聲明：</strong>
+                                <strong>⚠️ 免責聲明：</strong>
                                 <span id="disclaimer-text">本分析結果僅供參考，不可取代專業醫療建議。如有疑問，請諮詢您的醫師或藥師。</span>
                             </div>
                         </div>
@@ -378,29 +454,39 @@
             <div id="page-terms" class="page">
                 <h3>服務條款</h3>
                 <div class="bg-gray-50 p-4 rounded-lg">
-                    <h4 class="font-bold text-gray-700 mb-3">免責聲明與使用條款</h4>
+                    <h4 class="font-bold text-gray-700 mb-3">📋 免責聲明與使用條款</h4>
                     <div class="text-sm text-gray-700 space-y-3">
-                        <p><strong>1. 服務性質</strong></p>
-                        <p>本系統提供用藥紀錄管理、提醒服務及藥物相關資訊參考，僅作為輔助工具使用。</p>
+                        <div>
+                            <p><strong>1. 服務性質</strong></p>
+                            <p>本系統提供用藥紀錄管理、提醒服務及藥物相關資訊參考，僅作為輔助工具使用。</p>
+                        </div>
                         
-                        <p><strong>2. 免責聲明</strong></p>
-                        <p>• 本系統提供的所有資訊僅供參考，不可取代專業醫療建議</p>
-                        <p>• 任何用藥決定都應諮詢合格的醫師或藥師</p>
-                        <p>• 系統無法保證藥物辨識結果的完全準確性</p>
-                        <p>• 藥物交互作用分析結果僅供參考，實際情況可能因人而異</p>
+                        <div>
+                            <p><strong>2. 免責聲明</strong></p>
+                            <p>• 本系統提供的所有資訊僅供參考，不可取代專業醫療建議</p>
+                            <p>• 任何用藥決定都應諮詢合格的醫師或藥師</p>
+                            <p>• 系統無法保證藥物辨識結果的完全準確性</p>
+                            <p>• 藥物交互作用分析結果僅供參考，實際情況可能因人而異</p>
+                        </div>
                         
-                        <p><strong>3. 使用責任</strong></p>
-                        <p>使用者應自行承擔使用本系統的風險，並對自己的用藥安全負責。</p>
+                        <div>
+                            <p><strong>3. 使用責任</strong></p>
+                            <p>使用者應自行承擔使用本系統的風險，並對自己的用藥安全負責。</p>
+                        </div>
                         
-                        <p><strong>4. 資料隱私</strong></p>
-                        <p>本系統將保護使用者個人資料，不會未經同意分享給第三方。</p>
+                        <div>
+                            <p><strong>4. 資料隱私</strong></p>
+                            <p>本系統將保護使用者個人資料，不會未經同意分享給第三方。</p>
+                        </div>
                         
-                        <p><strong>5. 緊急狀況</strong></p>
-                        <p>如遇緊急醫療狀況，請立即聯絡醫療機構或撥打緊急電話。</p>
+                        <div>
+                            <p><strong>5. 緊急狀況</strong></p>
+                            <p class="text-red-600 font-semibold">如遇緊急醫療狀況，請立即聯絡醫療機構或撥打緊急電話 119。</p>
+                        </div>
                     </div>
                     
                     <div class="mt-6 text-center">
-                        <button id="btn-accept-terms" class="btn-primary">我已閱讀並同意</button>
+                        <button id="btn-accept-terms" class="btn-primary">✅ 我已閱讀並同意</button>
                     </div>
                 </div>
             </div>
@@ -414,5 +500,27 @@
     </div>
     
     <script src="js/app.js"></script>
+    <script>
+        // 标签切换逻辑
+        function updateActiveTab(activeView) {
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            const activeTab = document.getElementById(`tab-${activeView}`);
+            if (activeTab) {
+                activeTab.classList.add('active');
+            }
+        }
+        
+        // 重写 showPageByView 函数以包含标签更新
+        const originalShowPageByView = window.showPageByView;
+        window.showPageByView = function(view) {
+            if (originalShowPageByView) {
+                originalShowPageByView(view);
+            }
+            updateActiveTab(view);
+        };
+    </script>
 </body>
 </html>

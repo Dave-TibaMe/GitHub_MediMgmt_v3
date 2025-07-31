@@ -1,4 +1,4 @@
-// js/app.js (完整更新版本 - 整合藥物警戒功能)
+// js/app.js (修复版本 - 解决 Rich Menu 页面路由问题)
 
 // --- 全域設定 ---
 const API_ROOT = window.APP_CONFIG.API_ROOT;
@@ -8,6 +8,8 @@ let user_id = null;
 
 // --- 初始化 ---
 window.onload = async () => {
+    console.log('页面开始加载...');
+    
     // 1. LIFF 初始化與登入
     try {
         await liff.init({ liffId: LIFF_ID });
@@ -27,57 +29,111 @@ window.onload = async () => {
     // 2. 綁定所有事件監聽器
     bindEvents();
 
-    // 3. 根據 URL 參數決定顯示哪個頁面
-    const urlParams = new URLSearchParams(window.location.search);
-    let view = 'scan';
+    // 3. 修复后的页面路由逻辑
+    const targetView = determineTargetView();
+    console.log('确定目标视图:', targetView);
     
+    showPageByView(targetView);
+};
+
+/**
+ * 确定目标页面视图 - 修复版本
+ */
+function determineTargetView() {
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    // 方式1: 直接从 view 参数获取
     if (urlParams.has('view')) {
-        view = urlParams.get('view');
-        console.log('直接從 view 參數取得:', view);
-    } else if (urlParams.has('liff.state')) {
+        const view = urlParams.get('view');
+        console.log('从 view 参数获取:', view);
+        return view;
+    }
+    
+    // 方式2: 从 liff.state 参数中解析
+    if (urlParams.has('liff.state')) {
         const liffState = decodeURIComponent(urlParams.get('liff.state'));
         console.log('LIFF State 原始值:', urlParams.get('liff.state'));
-        console.log('LIFF State 解碼後:', liffState);
+        console.log('LIFF State 解码后:', liffState);
         
+        // 解析 liff.state 中的参数
+        let stateParams;
         if (liffState.startsWith('?')) {
-            const stateParams = new URLSearchParams(liffState);
-            if (stateParams.has('view')) {
-                view = stateParams.get('view');
-                console.log('從 liff.state 取得 view:', view);
-            }
+            stateParams = new URLSearchParams(liffState);
+        } else if (liffState.startsWith('view=')) {
+            stateParams = new URLSearchParams('?' + liffState);
+        } else {
+            stateParams = new URLSearchParams('?view=' + liffState);
+        }
+        
+        if (stateParams.has('view')) {
+            const view = stateParams.get('view');
+            console.log('从 liff.state 解析出 view:', view);
+            return view;
         }
     }
     
+    // 方式3: 检查其他可能的参数格式
+    const allParams = Object.fromEntries(urlParams.entries());
+    console.log('所有 URL 参数:', allParams);
+    
+    // 检查是否有直接的视图参数
+    for (const [key, value] of Object.entries(allParams)) {
+        if (['scan', 'medication', 'alert', 'terms'].includes(key)) {
+            console.log('从参数键名确定视图:', key);
+            return key;
+        }
+        if (['scan', 'medication', 'alert', 'terms'].includes(value)) {
+            console.log('从参数值确定视图:', value);
+            return value;
+        }
+    }
+    
+    // 默认返回扫描页面
+    console.log('使用默认视图: scan');
+    return 'scan';
+}
+
+/**
+ * 根据视图名称显示对应页面
+ */
+function showPageByView(view) {
     let pageId;
+    
     switch(view) {
         case 'scan':
             pageId = 'page-scan';
             break;
         case 'medication':
             pageId = 'page-medication-list';
+            // 预加载用药列表
+            setTimeout(() => loadMedications(), 100);
             break;
         case 'alert':
             pageId = 'page-alert';
+            // 预加载警戒页面
+            setTimeout(() => initializeAlertPage(), 100);
+            break;
+        case 'terms':
+            pageId = 'page-terms';
             break;
         default:
+            console.warn('未知的视图类型:', view);
             pageId = 'page-scan';
     }
     
-    console.log(`最終 view: ${view}, 對應頁面: ${pageId}`);
+    console.log(`显示页面: ${view} -> ${pageId}`);
     showPage(pageId);
-
-    // 預先載入對應頁面的資料
-    if (pageId === 'page-medication-list') {
-        loadMedications();
-    } else if (pageId === 'page-alert') {
-        initializeAlertPage();
-    }
-};
+}
 
 // --- 事件綁定 ---
 function bindEvents() {
-    document.getElementById('btn-upload')?.addEventListener('click', handleUploadAndRecognize);
+    // 绑定上传按钮事件
+    const uploadBtn = document.getElementById('btn-upload');
+    if (uploadBtn) {
+        uploadBtn.addEventListener('click', handleUploadAndRecognize);
+    }
 
+    // 绑定文件选择事件
     const fileInput = document.getElementById('prescriptionUpload');
     const previewContainer = document.getElementById('image-preview-container');
     const imagePreview = document.getElementById('prescription-image-preview');
@@ -99,31 +155,47 @@ function bindEvents() {
         });
     }
 
-    // 綁定檔案上傳標籤點擊事件
+    // 绑定文件上传标签点击事件
     const uploadLabel = document.querySelector('.upload-label');
     if (uploadLabel && fileInput) {
         uploadLabel.addEventListener('click', () => {
             fileInput.click();
         });
     }
+
+    // 绑定服务条款接受按钮
+    const acceptTermsBtn = document.getElementById('btn-accept-terms');
+    if (acceptTermsBtn) {
+        acceptTermsBtn.addEventListener('click', () => {
+            showToast('感谢您接受服务条款！', 'success');
+            showPageByView('scan');
+        });
+    }
 }
 
 // --- UI 控制函式 ---
 function showPage(pageId) {
+    console.log('切换到页面:', pageId);
+    
+    // 隐藏所有页面
     document.querySelectorAll('.page').forEach(page => {
+        page.classList.remove('active');
         page.style.display = 'none';
     });
+    
+    // 显示目标页面
     const targetPage = document.getElementById(pageId);
     if (targetPage) {
+        targetPage.classList.add('active');
         targetPage.style.display = 'block';
-        
-        // 如果是藥物警戒頁面，初始化相關功能
-        if (pageId === 'page-alert') {
-            setTimeout(() => initializeAlertPage(), 100);
-        }
+        console.log('成功显示页面:', pageId);
     } else {
-        console.error(`找不到 ID 為 ${pageId} 的頁面`);
-        document.getElementById('page-scan').style.display = 'block';
+        console.error(`找不到 ID 为 ${pageId} 的页面，回退到默认页面`);
+        const defaultPage = document.getElementById('page-scan');
+        if (defaultPage) {
+            defaultPage.classList.add('active');
+            defaultPage.style.display = 'block';
+        }
     }
 }
 
@@ -246,7 +318,7 @@ function displayMedicationList(medications) {
         container.innerHTML = `
             <div class="text-center py-8">
                 <p class="text-gray-500 mb-4">目前沒有用藥紀錄</p>
-                <button onclick="showPage('page-scan')" class="btn-primary">
+                <button onclick="showPageByView('scan')" class="btn-primary">
                     新增用藥紀錄
                 </button>
             </div>
@@ -284,7 +356,7 @@ function displayMedicationList(medications) {
     
     listHtml += `
         <div class="mt-6 text-center">
-            <button onclick="showPage('page-scan')" class="btn-primary">
+            <button onclick="showPageByView('scan')" class="btn-primary">
                 新增用藥紀錄
             </button>
         </div>
@@ -541,10 +613,10 @@ function displayAnalysisResult(analysisResult) {
         return;
     }
     
-    contentElement.textContent = analysisResult.analysis_result || '分析結果載入失敗';
+    contentElement.textContent = analysisResult.analysis_result || analysisResult || '分析結果載入失敗';
     
     if (disclaimerElement) {
-        disclaimerElement.textContent = analysisResult.disclaimer || '本分析結果僅供參考，不可取代專業醫療建議。如有疑問，請諮詢您的醫師或藥師。';
+        disclaimerElement.textContent = '本分析結果僅供參考，不可取代專業醫療建議。如有疑問，請諮詢您的醫師或藥師。';
     }
     
     resultContainer.style.display = 'block';
@@ -558,21 +630,17 @@ function displayAnalysisResult(analysisResult) {
 function initializeAlertPage() {
     const updateProfileBtn = document.getElementById('btn-update-profile');
     if (updateProfileBtn) {
+        updateProfileBtn.removeEventListener('click', updateUserProfile); // 避免重复绑定
         updateProfileBtn.addEventListener('click', updateUserProfile);
     }
     
     const analyzeBtn = document.getElementById('btn-analyze-interaction');
     if (analyzeBtn) {
+        analyzeBtn.removeEventListener('click', analyzeDrugInteractions); // 避免重复绑定
         analyzeBtn.addEventListener('click', analyzeDrugInteractions);
     }
     
     loadUserProfile();
-}
-
-async function analyzeDrug() {
-    initializeAlertPage();
-});
-    }
 }
 
 /**
@@ -626,7 +694,7 @@ function renderMedicationEditForm(medications) {
 
     container.innerHTML = formHtml;
     document.getElementById('btn-save-medications')?.addEventListener('click', saveMedicationFromForm);
-    document.getElementById('btn-cancel-edit')?.addEventListener('click', () => showPage('page-scan'));
+    document.getElementById('btn-cancel-edit')?.addEventListener('click', () => showPageByView('scan'));
 }
 
 /**
@@ -683,11 +751,18 @@ async function saveMedicationFromForm() {
         console.log('成功儲存藥物:', savedMedications);
         
         showToast('用藥紀錄已成功儲存！', 'success');
-        showPage('page-medication-list');
+        showPageByView('medication');
         await loadMedications();
 
     } catch (error) {
         console.error('儲存藥物失敗:', error);
         showToast(`儲存失敗: ${error.message}`, 'error');
     } finally {
-        showLoading(false
+        showLoading(false);
+    }
+}
+
+// 全局函数，供 HTML 内联事件调用
+window.showPageByView = showPageByView;
+window.editMedication = editMedication;
+window.deleteMedication = deleteMedication;
