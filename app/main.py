@@ -9,7 +9,7 @@ import logging
 import json
 
 # 匯入您的 API 路由模組和資料庫初始化函式
-from app.api import medication, prescription, alert, user, reminder, terms
+from app.api import medication, prescription, alert, user, reminder, terms, user_profile
 from app.db.database import init_db
 
 # --- 1. 設定與初始化 ---
@@ -67,8 +67,9 @@ async def log_request_body(request: Request, call_next):
 # --- 3. API 路由註冊 ---
 app.include_router(medication.router, prefix="/api/medications", tags=["藥物 (Medications)"])
 app.include_router(prescription.router, prefix="/api/prescription", tags=["處方箋 (Prescription)"])
-app.include_router(alert.router, prefix="/api/alert", tags=["用藥提醒 (Alerts)"])
+app.include_router(alert.router, prefix="/api/alert", tags=["藥物警戒 (Alerts)"])
 app.include_router(user.router, prefix="/api/user", tags=["使用者 (Users)"])
+app.include_router(user_profile.router, prefix="/api/user-profile", tags=["使用者個人資料 (User Profile)"])
 app.include_router(reminder.router, prefix="/api/reminder", tags=["提醒事項 (Reminders)"])
 app.include_router(terms.router, prefix="/api/terms", tags=["服務條款 (Terms)"])
 

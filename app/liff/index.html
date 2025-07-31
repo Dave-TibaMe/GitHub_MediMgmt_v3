@@ -2,6 +2,7 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>智慧用藥管理系統</title>
     <link rel="stylesheet" href="css/style.css">
     <!-- LINE LIFF SDK -->
@@ -91,37 +92,60 @@
         .text-gray-700 { color: #374151; }
         .text-blue-600 { color: #2563eb; }
         .text-green-800 { color: #166534; }
+        .text-red-600 { color: #dc2626; }
         
+        .bg-gray-50 { background-color: #f9fafb; }
         .bg-gray-100 { background-color: #f3f4f6; }
         .bg-gray-200 { background-color: #e5e7eb; }
         .bg-green-100 { background-color: #dcfce7; }
+        .bg-white { background-color: white; }
         
         .space-y-1 > * + * { margin-top: 0.25rem; }
+        .space-y-3 > * + * { margin-top: 0.75rem; }
         .space-y-4 > * + * { margin-top: 1rem; }
         .space-x-2 > * + * { margin-left: 0.5rem; }
+        .space-x-4 > * + * { margin-left: 1rem; }
         
         .px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
+        .p-4 { padding: 1rem; }
         .py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }
         .py-8 { padding-top: 2rem; padding-bottom: 2rem; }
+        .pb-2 { padding-bottom: 0.5rem; }
         
         .text-xs { font-size: 0.75rem; }
         .text-sm { font-size: 0.875rem; }
         .text-lg { font-size: 1.125rem; }
         
         .font-bold { font-weight: 700; }
+        .font-medium { font-weight: 500; }
+        .font-semibold { font-weight: 600; }
+        
         .rounded { border-radius: 0.25rem; }
         .rounded-lg { border-radius: 0.5rem; }
+        .rounded-md { border-radius: 0.375rem; }
         
         .mb-2 { margin-bottom: 0.5rem; }
+        .mb-3 { margin-bottom: 0.75rem; }
         .mb-4 { margin-bottom: 1rem; }
+        .mb-6 { margin-bottom: 1.5rem; }
+        .mt-1 { margin-top: 0.25rem; }
         .mt-3 { margin-top: 0.75rem; }
         .mt-6 { margin-top: 1.5rem; }
+        .my-6 { margin-top: 1.5rem; margin-bottom: 1.5rem; }
         
         .flex { display: flex; }
         .justify-between { justify-content: space-between; }
+        .justify-end { justify-content: flex-end; }
         .items-start { align-items: flex-start; }
+        .items-center { align-items: center; }
         
         .shadow { box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06); }
+        .border { border-width: 1px; }
+        .border-b { border-bottom-width: 1px; }
+        
+        .block { display: block; }
+        .w-full { width: 100%; }
+        .whitespace-pre-wrap { white-space: pre-wrap; }
         
         input[type="text"], input[type="date"] {
             width: 100%;
@@ -130,6 +154,13 @@
             border-radius: 6px;
             font-size: 14px;
             margin-top: 4px;
+            box-sizing: border-box;
+        }
+        
+        input[type="text"]:focus, input[type="date"]:focus {
+            border-color: #6366f1;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
         }
         
         label {
@@ -145,6 +176,73 @@
             border-radius: 8px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             margin-bottom: 16px;
+        }
+        
+        .upload-label {
+            display: inline-block;
+            background: #59c3c3;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-bottom: 15px;
+        }
+        
+        .upload-label:hover {
+            background: #348888;
+        }
+        
+        /* 藥物警戒頁面專用樣式 */
+        .alert-section {
+            margin-bottom: 2rem;
+        }
+
+        .profile-group {
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 4px solid #59c3c3;
+        }
+
+        .checkbox-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .checkbox-grid label {
+            display: flex;
+            align-items: center;
+            font-size: 14px;
+            color: #374151;
+            cursor: pointer;
+            padding: 0.25rem;
+            font-weight: normal;
+        }
+
+        .checkbox-grid input[type="checkbox"] {
+            margin-right: 0.5rem;
+            width: 16px;
+            height: 16px;
+        }
+
+        .analysis-section {
+            border-top: 1px solid #e5e7eb;
+            padding-top: 1.5rem;
+        }
+
+        #analysis-result-content {
+            line-height: 1.6;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .description {
+            color: #6b7280;
+            font-size: 14px;
+            margin-bottom: 1rem;
         }
     </style>
 </head>
@@ -190,7 +288,121 @@
             <!-- 分頁4：藥物警戒 -->
             <div id="page-alert" class="page">
                 <h3>藥物警戒</h3>
-                <p>此功能尚未實作。</p>
+                
+                <!-- 個人資料設定區塊 -->
+                <div class="alert-section">
+                    <h4 class="text-lg font-bold text-blue-600 mb-4">個人資料設定</h4>
+                    
+                    <!-- 飲食習慣 -->
+                    <div class="profile-group mb-6">
+                        <h5 class="font-bold text-gray-700 mb-2">飲食習慣</h5>
+                        <div class="checkbox-grid">
+                            <label><input type="checkbox" id="diet_alcohol"> 酒精</label>
+                            <label><input type="checkbox" id="diet_caffeine"> 咖啡因（咖啡、茶、巧克力）</label>
+                            <label><input type="checkbox" id="diet_grapefruit"> 葡萄柚(汁)</label>
+                            <label><input type="checkbox" id="diet_milk"> 牛奶/乳製品（含鈣）</label>
+                            <label><input type="checkbox" id="diet_high_fat"> 高脂餐</label>
+                            <label><input type="checkbox" id="diet_high_vitamin_k"> 高維他命K食物（深綠色蔬菜）</label>
+                            <label><input type="checkbox" id="diet_tyramine"> 含酪胺食物（起司、紅酒、醃肉）</label>
+                        </div>
+                    </div>
+                    
+                    <!-- 正在服用的保健食品/中藥 -->
+                    <div class="profile-group mb-6">
+                        <h5 class="font-bold text-gray-700 mb-2">正在服用的保健食品/中藥</h5>
+                        <div class="checkbox-grid">
+                            <label><input type="checkbox" id="supp_st_johns_wort"> 聖約翰草</label>
+                            <label><input type="checkbox" id="supp_ginkgo"> 銀杏</label>
+                            <label><input type="checkbox" id="supp_ginseng"> 人蔘</label>
+                            <label><input type="checkbox" id="supp_garlic"> 大蒜</label>
+                            <label><input type="checkbox" id="supp_grape_seed"> 葡萄籽</label>
+                            <label><input type="checkbox" id="supp_fish_oil"> 魚油</label>
+                            <label><input type="checkbox" id="supp_omega3"> Omega-3</label>
+                            <label><input type="checkbox" id="supp_licorice"> 甘草（Licorice）</label>
+                            <label><input type="checkbox" id="supp_red_yeast_rice"> 紅麴</label>
+                        </div>
+                    </div>
+                    
+                    <!-- 個人病史 -->
+                    <div class="profile-group mb-6">
+                        <h5 class="font-bold text-gray-700 mb-2">個人病史</h5>
+                        <div class="checkbox-grid">
+                            <label><input type="checkbox" id="history_asthma"> 氣喘</label>
+                            <label><input type="checkbox" id="history_diabetes"> 糖尿病</label>
+                            <label><input type="checkbox" id="history_hypertension"> 高血壓</label>
+                            <label><input type="checkbox" id="history_liver_dysfunction"> 肝功能不全</label>
+                            <label><input type="checkbox" id="history_kidney_dysfunction"> 腎功能不全</label>
+                            <label><input type="checkbox" id="history_gastric_ulcer"> 胃潰瘍或消化道出血</label>
+                            <label><input type="checkbox" id="history_epilepsy"> 癲癇</label>
+                            <label><input type="checkbox" id="history_arrhythmia"> 心律不整</label>
+                        </div>
+                    </div>
+                    
+                    <!-- 特殊生理狀況 -->
+                    <div class="profile-group mb-6">
+                        <h5 class="font-bold text-gray-700 mb-2">特殊生理狀況</h5>
+                        <div class="checkbox-grid">
+                            <label><input type="checkbox" id="condition_pregnancy"> 懷孕</label>
+                            <label><input type="checkbox" id="condition_breastfeeding"> 哺乳</label>
+                            <label><input type="checkbox" id="condition_infant"> 嬰幼兒</label>
+                            <label><input type="checkbox" id="condition_elderly"> 老年人</label>
+                            <label><input type="checkbox" id="condition_obesity"> 肥胖</label>
+                        </div>
+                    </div>
+                    
+                    <button id="btn-update-profile" class="btn-primary mb-4">更新個人資料</button>
+                </div>
+                
+                <hr class="my-6">
+                
+                <!-- 藥物交互作用分析區塊 -->
+                <div class="analysis-section">
+                    <h4 class="text-lg font-bold text-blue-600 mb-4">藥物交互作用分析</h4>
+                    <button id="btn-analyze-interaction" class="btn-primary mb-4">開始分析</button>
+                    
+                    <!-- 分析結果顯示區域 -->
+                    <div id="analysis-result-container" style="display: none;">
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h5 class="font-bold text-gray-700 mb-2">分析結果</h5>
+                            <div id="analysis-result-content" class="text-gray-700 whitespace-pre-wrap mb-4"></div>
+                            <div class="text-sm text-red-600 font-semibold">
+                                <strong>免責聲明：</strong>
+                                <span id="disclaimer-text">本分析結果僅供參考，不可取代專業醫療建議。如有疑問，請諮詢您的醫師或藥師。</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 分頁5：服務條款 -->
+            <div id="page-terms" class="page">
+                <h3>服務條款</h3>
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h4 class="font-bold text-gray-700 mb-3">免責聲明與使用條款</h4>
+                    <div class="text-sm text-gray-700 space-y-3">
+                        <p><strong>1. 服務性質</strong></p>
+                        <p>本系統提供用藥紀錄管理、提醒服務及藥物相關資訊參考，僅作為輔助工具使用。</p>
+                        
+                        <p><strong>2. 免責聲明</strong></p>
+                        <p>• 本系統提供的所有資訊僅供參考，不可取代專業醫療建議</p>
+                        <p>• 任何用藥決定都應諮詢合格的醫師或藥師</p>
+                        <p>• 系統無法保證藥物辨識結果的完全準確性</p>
+                        <p>• 藥物交互作用分析結果僅供參考，實際情況可能因人而異</p>
+                        
+                        <p><strong>3. 使用責任</strong></p>
+                        <p>使用者應自行承擔使用本系統的風險，並對自己的用藥安全負責。</p>
+                        
+                        <p><strong>4. 資料隱私</strong></p>
+                        <p>本系統將保護使用者個人資料，不會未經同意分享給第三方。</p>
+                        
+                        <p><strong>5. 緊急狀況</strong></p>
+                        <p>如遇緊急醫療狀況，請立即聯絡醫療機構或撥打緊急電話。</p>
+                    </div>
+                    
+                    <div class="mt-6 text-center">
+                        <button id="btn-accept-terms" class="btn-primary">我已閱讀並同意</button>
+                    </div>
+                </div>
             </div>
         </main>
 

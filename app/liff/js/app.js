@@ -1,4 +1,4 @@
-// js/app.js (修正用藥列表顯示問題)
+// app/liff/js/app.js (修正版 - 改善路由處理)
 
 // --- 全域設定 ---
 const API_ROOT = window.APP_CONFIG.API_ROOT;
@@ -8,10 +8,13 @@ let user_id = null;
 
 // --- 初始化 ---
 window.onload = async () => {
+    console.log('頁面開始載入...');
+    
     // 1. LIFF 初始化與登入
     try {
         await liff.init({ liffId: LIFF_ID });
         if (!liff.isLoggedIn()) {
+            console.log('使用者未登入，執行登入...');
             liff.login();
             return;
         }
@@ -27,60 +30,189 @@ window.onload = async () => {
     // 2. 綁定所有事件監聽器
     bindEvents();
 
-    // 3. 根據 URL 參數決定顯示哪個頁面 (處理 LIFF 參數)
+    // 3. 解析並處理路由參數
+    const targetView = parseRouteParameters();
+    console.log('解析到的目標頁面:', targetView);
+    
+    // 4. 顯示對應頁面並載入資料
+    await showPageAndLoadData(targetView);
+};
+
+// --- 路由參數解析 ---
+function parseRouteParameters() {
     const urlParams = new URLSearchParams(window.location.search);
+    console.log('完整 URL:', window.location.href);
+    console.log('查詢參數:', window.location.search);
+    
     let view = 'scan'; // 預設值
     
-    // 檢查是否有直接的 view 參數
+    // 方法1: 直接檢查 view 參數
     if (urlParams.has('view')) {
         view = urlParams.get('view');
-        console.log('直接從 view 參數取得:', view);
+        console.log('從直接 view 參數取得:', view);
+        return view;
     }
-    // 檢查 LIFF 的 liff.state 參數
-    else if (urlParams.has('liff.state')) {
+    
+    // 方法2: 檢查 LIFF 的 liff.state 參數
+    if (urlParams.has('liff.state')) {
         const liffState = decodeURIComponent(urlParams.get('liff.state'));
         console.log('LIFF State 原始值:', urlParams.get('liff.state'));
         console.log('LIFF State 解碼後:', liffState);
         
-        // 解析 liff.state 中的參數（格式可能是 "?view=medication"）
+        // 解析 liff.state 中的參數
         if (liffState.startsWith('?')) {
             const stateParams = new URLSearchParams(liffState);
             if (stateParams.has('view')) {
                 view = stateParams.get('view');
                 console.log('從 liff.state 取得 view:', view);
+                return view;
+            }
+        }
+        
+        // 有時候 liff.state 直接是 view 的值
+        if (['scan', 'medication', 'alert', 'terms'].includes(liffState)) {
+            view = liffState;
+            console.log('liff.state 直接是 view 值:', view);
+            return view;
+        }
+    }
+    
+    // 方法3: 檢查 URL fragment (#)
+    const hash = window.location.hash;
+    if (hash) {
+        const hashView = hash.substring(1); // 移除 # 字符
+        if (['scan', 'medication', 'alert', 'terms'].includes(hashView)) {
+            view = hashView;
+            console.log('從 URL fragment 取得 view:', view);
+            return view;
+        }
+    }
+    
+    // 方法4: 檢查所有可能的參數名稱
+    const possibleParams = ['page', 'section', 'tab', 'route'];
+    for (const param of possibleParams) {
+        if (urlParams.has(param)) {
+            const paramValue = urlParams.get(param);
+            if (['scan', 'medication', 'alert', 'terms'].includes(paramValue)) {
+                view = paramValue;
+                console.log(`從 ${param} 參數取得 view:`, view);
+                return view;
             }
         }
     }
     
+    console.log('使用預設 view:', view);
+    return view;
+}
+
+// --- 顯示頁面並載入資料 ---
+async function showPageAndLoadData(view) {
     // 根據 view 參數對應到正確的頁面 ID
-    let pageId;
+    let pageId, pageTitle;
+    
     switch(view) {
         case 'scan':
             pageId = 'page-scan';
+            pageTitle = '藥單掃描';
             break;
         case 'medication':
             pageId = 'page-medication-list';
+            pageTitle = '用藥管理';
             break;
         case 'alert':
             pageId = 'page-alert';
+            pageTitle = '藥物警戒';
+            break;
+        case 'terms':
+            pageId = 'page-terms';
+            pageTitle = '服務條款';
             break;
         default:
-            pageId = 'page-scan'; // 預設顯示掃描頁面
+            pageId = 'page-scan';
+            pageTitle = '藥單掃描';
+            view = 'scan';
     }
     
-    console.log(`最終 view: ${view}, 對應頁面: ${pageId}`);
+    console.log(`顯示頁面: ${pageTitle} (${pageId})`);
+    
+    // 確保頁面存在，如果不存在則創建
+    ensurePageExists(pageId, view);
+    
+    // 顯示頁面
     showPage(pageId);
-
-    // 預先載入對應頁面的資料
-    if (pageId === 'page-medication-list') {
-        loadMedications();
-    } else if (pageId === 'page-alert') {
-        analyzeDrug();
+    
+    // 根據頁面類型載入對應資料
+    try {
+        if (view === 'medication') {
+            console.log('載入用藥管理資料...');
+            await loadMedications();
+        } else if (view === 'alert') {
+            console.log('載入藥物警戒頁面...');
+            showAlertPage();
+        } else if (view === 'terms') {
+            console.log('載入服務條款...');
+            showTermsPage();
+        }
+    } catch (error) {
+        console.error(`載入 ${pageTitle} 資料時發生錯誤:`, error);
+        showToast(`載入 ${pageTitle} 資料失敗`, 'error');
     }
-};
+}
+
+// --- 確保頁面存在 ---
+function ensurePageExists(pageId, view) {
+    let page = document.getElementById(pageId);
+    
+    if (!page) {
+        console.log(`頁面 ${pageId} 不存在，正在創建...`);
+        
+        const mainContainer = document.querySelector('main');
+        if (!mainContainer) {
+            console.error('找不到主容器');
+            return;
+        }
+        
+        page = document.createElement('div');
+        page.id = pageId;
+        page.className = 'page';
+        page.style.display = 'none';
+        
+        // 根據頁面類型設定內容
+        switch(view) {
+            case 'medication':
+                page.innerHTML = `
+                    <h3>用藥管理</h3>
+                    <div id="medication-list-container">
+                        <p class="text-center text-gray-500">載入中...</p>
+                    </div>
+                `;
+                break;
+            case 'alert':
+                page.innerHTML = `
+                    <h3>藥物警戒</h3>
+                    <div id="alert-container">
+                        <p class="text-center text-gray-500">載入中...</p>
+                    </div>
+                `;
+                break;
+            case 'terms':
+                page.innerHTML = `
+                    <h3>服務條款</h3>
+                    <div id="terms-container">
+                        <p class="text-center text-gray-500">載入中...</p>
+                    </div>
+                `;
+                break;
+        }
+        
+        mainContainer.appendChild(page);
+        console.log(`成功創建 ${pageId} 頁面`);
+    }
+}
 
 // --- 事件綁定 ---
 function bindEvents() {
+    // 藥單上傳相關事件
     document.getElementById('btn-upload')?.addEventListener('click', handleUploadAndRecognize);
 
     const fileInput = document.getElementById('prescriptionUpload');
@@ -88,6 +220,12 @@ function bindEvents() {
     const imagePreview = document.getElementById('prescription-image-preview');
 
     if (fileInput && previewContainer && imagePreview) {
+        // 點擊上傳標籤觸發檔案選擇
+        document.querySelector('.upload-label')?.addEventListener('click', () => {
+            fileInput.click();
+        });
+        
+        // 檔案選擇變更事件
         fileInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
             if (file && file.type.startsWith('image/')) {
@@ -104,27 +242,39 @@ function bindEvents() {
         });
     }
 
+    // 導航按鈕事件
     document.getElementById('btn-load-medications')?.addEventListener('click', () => {
         showPage('page-medication-list');
         loadMedications();
     });
+    
     document.getElementById('btn-analyze-alerts')?.addEventListener('click', () => {
         showPage('page-alert');
-        analyzeDrug();
+        showAlertPage();
     });
 }
 
 // --- UI 控制函式 ---
 function showPage(pageId) {
+    console.log(`切換到頁面: ${pageId}`);
+    
+    // 隱藏所有頁面
     document.querySelectorAll('.page').forEach(page => {
         page.style.display = 'none';
     });
+    
+    // 顯示目標頁面
     const targetPage = document.getElementById(pageId);
     if (targetPage) {
         targetPage.style.display = 'block';
+        console.log(`成功顯示頁面: ${pageId}`);
     } else {
         console.error(`找不到 ID 為 ${pageId} 的頁面`);
-        document.getElementById('page-scan').style.display = 'block';
+        // 回退到預設頁面
+        const defaultPage = document.getElementById('page-scan');
+        if (defaultPage) {
+            defaultPage.style.display = 'block';
+        }
     }
 }
 
@@ -142,10 +292,6 @@ function showToast(message, type = 'info') {
 }
 
 // --- 核心功能函式 ---
-
-/**
- * 步驟1：處理上傳與辨識藥單
- */
 async function handleUploadAndRecognize() {
     const fileInput = document.getElementById('prescriptionUpload');
     if (!fileInput.files || fileInput.files.length === 0) {
@@ -193,9 +339,7 @@ async function handleUploadAndRecognize() {
     }
 }
 
-/**
- * 步驟2：根據辨識結果，動態生成可編輯的表單
- */
+// --- 其他核心功能保持不變 ---
 function renderMedicationEditForm(medications) {
     const container = document.getElementById('medication-edit-form-container');
     if (!container) return;
@@ -247,9 +391,6 @@ function renderMedicationEditForm(medications) {
     document.getElementById('btn-cancel-edit')?.addEventListener('click', () => showPage('page-scan'));
 }
 
-/**
- * 步驟3：從編輯表單收集資料並呼叫 API 儲存
- */
 async function saveMedicationFromForm() {
     showLoading(true, '正在儲存用藥紀錄...');
 
@@ -312,8 +453,6 @@ async function saveMedicationFromForm() {
     }
 }
 
-// --- 用藥列表相關函式 ---
-
 async function loadMedications() {
     if (!user_id) {
         console.error('無法載入用藥清單：user_id 為空');
@@ -347,13 +486,11 @@ async function loadMedications() {
 }
 
 function displayMedicationList(medications) {
-    // 確保用藥管理頁面存在
     let container = document.getElementById('medication-list-container');
     
-    // 如果容器不存在，動態創建用藥管理頁面
     if (!container) {
         console.log('用藥管理頁面容器不存在，正在創建...');
-        createMedicationListPage();
+        ensurePageExists('page-medication-list', 'medication');
         container = document.getElementById('medication-list-container');
     }
     
@@ -404,7 +541,6 @@ function displayMedicationList(medications) {
     
     listHtml += '</div>';
     
-    // 添加新增按鈕
     listHtml += `
         <div class="mt-6 text-center">
             <button onclick="showPage('page-scan')" class="btn-primary">
@@ -416,36 +552,6 @@ function displayMedicationList(medications) {
     container.innerHTML = listHtml;
 }
 
-function createMedicationListPage() {
-    // 檢查是否已經存在用藥管理頁面
-    let medicationPage = document.getElementById('page-medication-list');
-    
-    if (!medicationPage) {
-        // 創建新的用藥管理頁面
-        medicationPage = document.createElement('div');
-        medicationPage.id = 'page-medication-list';
-        medicationPage.className = 'page';
-        medicationPage.style.display = 'none';
-        
-        medicationPage.innerHTML = `
-            <h3>用藥管理</h3>
-            <div id="medication-list-container">
-                <p class="text-center text-gray-500">載入中...</p>
-            </div>
-        `;
-        
-        // 添加到主容器中
-        const mainContainer = document.querySelector('main');
-        if (mainContainer) {
-            mainContainer.appendChild(medicationPage);
-            console.log('成功創建用藥管理頁面');
-        } else {
-            console.error('找不到主容器，無法添加用藥管理頁面');
-        }
-    }
-}
-
-// 編輯和刪除藥物的函式（預留）
 function editMedication(medicationId) {
     showToast(`編輯藥物功能尚未實作 (ID: ${medicationId})`, 'info');
 }
@@ -465,7 +571,7 @@ async function deleteMedication(medicationId) {
         }
         
         showToast('用藥紀錄已刪除', 'success');
-        await loadMedications(); // 重新載入列表
+        await loadMedications();
         
     } catch (error) {
         console.error('刪除藥物失敗:', error);
@@ -473,6 +579,24 @@ async function deleteMedication(medicationId) {
     }
 }
 
-async function analyzeDrug() {
+function showAlertPage() {
     showToast('藥物交互作用分析功能尚未實作。', 'info');
+}
+
+function showTermsPage() {
+    const container = document.getElementById('terms-container');
+    if (container) {
+        container.innerHTML = `
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h4 class="text-lg font-bold mb-4">服務條款與免責聲明</h4>
+                <div class="space-y-4 text-sm text-gray-700">
+                    <p>1. 本系統僅提供用藥紀錄、提醒與資訊參考功能。</p>
+                    <p>2. 任何用藥決定請務必諮詢專業醫療人員。</p>
+                    <p>3. 本系統不承擔任何醫療責任。</p>
+                    <p>4. 所有藥物交互作用分析結果僅供參考。</p>
+                    <p>5. 使用者應自行承擔使用本系統的風險。</p>
+                </div>
+            </div>
+        `;
+    }
 }
