@@ -8,7 +8,7 @@ import logging
 
 from app.db.database import get_db
 from app.services.germini_service import call_gemini_text
-#from app.models.alert import Alert
+from app.models.alert import Alert
 from app.models.medication import Medication
 from app.models.user_profile import UserProfile
 
