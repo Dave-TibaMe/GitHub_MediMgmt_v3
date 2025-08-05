@@ -1,4 +1,4 @@
-// js/app.js (修复版本 - 解决 Rich Menu 页面路由问题)
+// js/app.js (增強版本 - 完整實作編輯功能)
 
 // --- 全域設定 ---
 const API_ROOT = window.APP_CONFIG.API_ROOT;
@@ -29,7 +29,7 @@ window.onload = async () => {
     // 2. 綁定所有事件監聽器
     bindEvents();
 
-    // 3. 修复后的页面路由逻辑
+    // 3. 確定目標頁面視圖
     const targetView = determineTargetView();
     console.log('确定目标视图:', targetView);
     
@@ -37,7 +37,7 @@ window.onload = async () => {
 };
 
 /**
- * 确定目标页面视图 - 修复版本
+ * 确定目标页面视图
  */
 function determineTargetView() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -354,14 +354,6 @@ function displayMedicationList(medications) {
     
     listHtml += '</div>';
     
-    listHtml += `
-        <div class="mt-6 text-center">
-            <button onclick="showPageByView('scan')" class="btn-primary">
-                新增用藥紀錄
-            </button>
-        </div>
-    `;
-    
     container.innerHTML = listHtml;
 }
 
@@ -391,8 +383,59 @@ function createMedicationListPage() {
     }
 }
 
-function editMedication(medicationId) {
-    showToast(`編輯藥物功能尚未實作 (ID: ${medicationId})`, 'info');
+/**
+ * 編輯藥物功能 - 完整實作
+ */
+async function editMedication(medicationId) {
+    if (!medicationId) {
+        showToast('無效的藥物 ID', 'error');
+        return;
+    }
+    
+    showLoading(true, '載入藥物資料中...');
+    
+    try {
+        // 1. 從後端 API 獲取藥物詳細資料
+        const response = await fetch(`${API_ROOT}/medications/user/${user_id}`);
+        
+        if (!response.ok) {
+            throw new Error('載入藥物資料失敗');
+        }
+        
+        const medications = await response.json();
+        const medication = medications.find(med => med.id === medicationId);
+        
+        if (!medication) {
+            throw new Error('找不到指定的藥物');
+        }
+        
+        console.log('載入要編輯的藥物:', medication);
+        
+        // 2. 將藥物資料轉換為編輯表單格式
+        const medicationForEdit = [{
+            id: medication.id,
+            name: medication.name || '',
+            effect: medication.effect || '',
+            dose: medication.dose || '',
+            frequency: medication.frequency || '',
+            start_date: medication.start_date || '',
+            end_date: medication.end_date || '',
+            status: medication.status || '進行中',
+            remind_times: medication.remind_times || []
+        }];
+        
+        // 3. 渲染編輯表單
+        renderMedicationEditForm(medicationForEdit, true); // true 表示是編輯模式
+        
+        // 4. 切換到編輯頁面
+        showPage('page-medication-edit');
+        
+    } catch (error) {
+        console.error('載入藥物編輯資料失敗:', error);
+        showToast(`載入失敗: ${error.message}`, 'error');
+    } finally {
+        showLoading(false);
+    }
 }
 
 async function deleteMedication(medicationId) {
@@ -416,6 +459,25 @@ async function deleteMedication(medicationId) {
         console.error('刪除藥物失敗:', error);
         showToast('刪除失敗', 'error');
     }
+}
+
+/**
+ * 顯示手動新增藥物表單
+ */
+function showAddMedicationForm() {
+    const newMedication = [{
+        name: '',
+        effect: '',
+        dose: '',
+        frequency: '',
+        start_date: new Date().toISOString().split('T')[0], // 今天的日期
+        end_date: '',
+        status: '進行中',
+        remind_times: []
+    }];
+    
+    renderMedicationEditForm(newMedication, false); // false 表示新增模式
+    showPage('page-medication-edit');
 }
 
 // --- 藥物警戒相關函式 ---
@@ -644,61 +706,264 @@ function initializeAlertPage() {
 }
 
 /**
- * 步驟2：根據辨識結果，動態生成可編輯的表單
+ * 根據藥物資料，動態生成可編輯的表單
+ * @param {Array} medications - 藥物資料陣列
+ * @param {boolean} isEditMode - 是否為編輯模式（true=編輯現有藥物，false=新增藥物）
  */
-function renderMedicationEditForm(medications) {
+function renderMedicationEditForm(medications, isEditMode = false) {
     const container = document.getElementById('medication-edit-form-container');
     if (!container) return;
 
     let formHtml = '';
+    
     medications.forEach((med, index) => {
+        // 處理服藥提醒時間
+        let remindTimes = [];
+        if (med.remind_times) {
+            if (typeof med.remind_times === 'string') {
+                try {
+                    remindTimes = JSON.parse(med.remind_times);
+                } catch (e) {
+                    console.warn('無法解析 remind_times:', med.remind_times);
+                    remindTimes = [];
+                }
+            } else if (Array.isArray(med.remind_times)) {
+                remindTimes = med.remind_times;
+            }
+        }
+        
+        // 如果沒有提醒時間，根據頻率創建預設提醒時間
+        if (remindTimes.length === 0) {
+            remindTimes = generateDefaultRemindTimes(med.frequency);
+        }
+        
         formHtml += `
-            <div class="medication-card bg-white p-4 rounded-lg shadow mb-4" data-index="${index}">
-                <h3 class="text-lg font-bold text-blue-600 border-b pb-2 mb-3">藥物 ${index + 1}</h3>
+            <div class="medication-card bg-white p-4 rounded-lg shadow mb-4" data-index="${index}" data-medication-id="${med.id || ''}">
+                <h3 class="text-lg font-bold text-blue-600 border-b pb-2 mb-3">
+                    ${isEditMode ? `編輯藥物: ${med.name || '未命名藥物'}` : `藥物 ${index + 1}`}
+                </h3>
                 <div class="space-y-3">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">藥物名稱</label>
-                        <input type="text" value="${med.name || ''}" data-field="name" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        <label class="block text-sm font-medium text-gray-700">藥物名稱 *</label>
+                        <input type="text" value="${med.name || ''}" data-field="name" 
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" 
+                               required>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700">藥物作用</label>
-                        <input type="text" value="${med.effect || ''}" data-field="effect" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        <input type="text" value="${med.effect || ''}" data-field="effect" 
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700">劑量</label>
-                        <input type="text" value="${med.dose || ''}" data-field="dose" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        <input type="text" value="${med.dose || ''}" data-field="dose" 
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" 
+                               placeholder="例如：1顆, 5mg, 1包">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">頻率</label>
-                        <input type="text" value="${med.frequency || ''}" data-field="frequency" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        <label class="block text-sm font-medium text-gray-700">服藥頻率</label>
+                        <input type="text" value="${med.frequency || ''}" data-field="frequency" 
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" 
+                               placeholder="例如：每日三次, 每日一次">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700">開始日期</label>
-                        <input type="date" value="${med.start_date || ''}" data-field="start_date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        <input type="date" value="${med.start_date || ''}" data-field="start_date" 
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700">結束日期 (可選)</label>
-                        <input type="date" value="${med.end_date || ''}" data-field="end_date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        <input type="date" value="${med.end_date || ''}" data-field="end_date" 
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">狀態</label>
+                        <select data-field="status" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                            <option value="進行中" ${med.status === '進行中' ? 'selected' : ''}>進行中</option>
+                            <option value="已停藥" ${med.status === '已停藥' ? 'selected' : ''}>已停藥</option>
+                        </select>
+                    </div>
+                    
+                    <!-- 服藥提醒時間設定區塊 -->
+                    <div class="remind-time-container">
+                        <h4 class="font-bold text-gray-700 mb-2">⏰ 服藥提醒時間</h4>
+                        <div id="remind-times-${index}" class="remind-times-list">
+                            ${generateRemindTimeInputs(remindTimes, index)}
+                        </div>
+                        <button type="button" onclick="addRemindTime(${index})" class="btn-secondary mt-2">
+                            ➕ 新增提醒時間
+                        </button>
                     </div>
                 </div>
             </div>
         `;
     });
 
+    const buttonText = isEditMode ? '更新藥物' : '儲存所有藥物';
+    const cancelAction = isEditMode ? 'showPageByView("medication")' : 'showPageByView("scan")';
+    
     formHtml += `
         <div class="mt-6 flex justify-end space-x-4">
-            <button type="button" id="btn-cancel-edit" class="btn-secondary">取消</button>
-            <button type="button" id="btn-save-medications" class="btn-primary">儲存所有藥物</button>
+            <button type="button" onclick="${cancelAction}" class="btn-secondary">取消</button>
+            <button type="button" id="btn-save-medications" class="btn-primary">${buttonText}</button>
         </div>
     `;
 
     container.innerHTML = formHtml;
-    document.getElementById('btn-save-medications')?.addEventListener('click', saveMedicationFromForm);
-    document.getElementById('btn-cancel-edit')?.addEventListener('click', () => showPageByView('scan'));
+    
+    // 綁定保存按鈕事件
+    const saveBtn = document.getElementById('btn-save-medications');
+    if (saveBtn) {
+        saveBtn.onclick = isEditMode ? updateMedicationFromForm : saveMedicationFromForm;
+    }
 }
 
 /**
- * 步驟3：從編輯表單收集資料並呼叫 API 儲存
+ * 根據服藥頻率生成預設提醒時間
+ */
+function generateDefaultRemindTimes(frequency) {
+    if (!frequency) return [{ hour: 9, minute: 0 }];
+    
+    const freq = frequency.toLowerCase();
+    
+    if (freq.includes('每日一次') || freq.includes('一日一次')) {
+        return [{ hour: 9, minute: 0 }];
+    } else if (freq.includes('每日二次') || freq.includes('一日二次') || freq.includes('每日兩次')) {
+        return [{ hour: 9, minute: 0 }, { hour: 21, minute: 0 }];
+    } else if (freq.includes('每日三次') || freq.includes('一日三次')) {
+        return [{ hour: 9, minute: 0 }, { hour: 14, minute: 0 }, { hour: 19, minute: 0 }];
+    } else if (freq.includes('每日四次') || freq.includes('一日四次')) {
+        return [{ hour: 8, minute: 0 }, { hour: 12, minute: 0 }, { hour: 17, minute: 0 }, { hour: 22, minute: 0 }];
+    } else if (freq.includes('睡前')) {
+        return [{ hour: 22, minute: 0 }];
+    } else {
+        // 預設每日一次
+        return [{ hour: 9, minute: 0 }];
+    }
+}
+
+/**
+ * 生成服藥提醒時間輸入欄位的 HTML
+ */
+function generateRemindTimeInputs(remindTimes, medicationIndex) {
+    if (!remindTimes || remindTimes.length === 0) {
+        return `
+            <div class="remind-time-item">
+                <select class="remind-hour">
+                    ${generateHourOptions(9)}
+                </select>
+                <span>:</span>
+                <select class="remind-minute">
+                    ${generateMinuteOptions(0)}
+                </select>
+                <button type="button" onclick="removeRemindTime(this)" class="btn-danger">🗑️</button>
+            </div>
+        `;
+    }
+    
+    return remindTimes.map((time, timeIndex) => `
+        <div class="remind-time-item">
+            <select class="remind-hour">
+                ${generateHourOptions(time.hour || 9)}
+            </select>
+            <span>:</span>
+            <select class="remind-minute">
+                ${generateMinuteOptions(time.minute || 0)}
+            </select>
+            <button type="button" onclick="removeRemindTime(this)" class="btn-danger">🗑️</button>
+        </div>
+    `).join('');
+}
+
+/**
+ * 生成小時選項
+ */
+function generateHourOptions(selectedHour = 9) {
+    let options = '';
+    for (let i = 0; i < 24; i++) {
+        const selected = i === selectedHour ? 'selected' : '';
+        options += `<option value="${i}" ${selected}>${i.toString().padStart(2, '0')}</option>`;
+    }
+    return options;
+}
+
+/**
+ * 生成分鐘選項
+ */
+function generateMinuteOptions(selectedMinute = 0) {
+    let options = '';
+    for (let i = 0; i < 60; i += 15) {
+        const selected = i === selectedMinute ? 'selected' : '';
+        options += `<option value="${i}" ${selected}>${i.toString().padStart(2, '0')}</option>`;
+    }
+    return options;
+}
+
+/**
+ * 新增服藥提醒時間
+ */
+function addRemindTime(medicationIndex) {
+    const container = document.getElementById(`remind-times-${medicationIndex}`);
+    if (!container) return;
+    
+    const newRemindTimeHtml = `
+        <div class="remind-time-item">
+            <select class="remind-hour">
+                ${generateHourOptions(9)}
+            </select>
+            <span>:</span>
+            <select class="remind-minute">
+                ${generateMinuteOptions(0)}
+            </select>
+            <button type="button" onclick="removeRemindTime(this)" class="btn-danger">🗑️</button>
+        </div>
+    `;
+    
+    container.insertAdjacentHTML('beforeend', newRemindTimeHtml);
+}
+
+/**
+ * 移除服藥提醒時間
+ */
+function removeRemindTime(button) {
+    const remindTimeItem = button.closest('.remind-time-item');
+    const container = remindTimeItem.parentElement;
+    
+    // 至少保留一個提醒時間
+    if (container.children.length > 1) {
+        remindTimeItem.remove();
+    } else {
+        showToast('至少需要保留一個提醒時間', 'warning');
+    }
+}
+
+/**
+ * 收集服藥提醒時間資料
+ */
+function collectRemindTimes(medicationIndex) {
+    const container = document.getElementById(`remind-times-${medicationIndex}`);
+    if (!container) return [];
+    
+    const remindTimeItems = container.querySelectorAll('.remind-time-item');
+    const remindTimes = [];
+    
+    remindTimeItems.forEach(item => {
+        const hourSelect = item.querySelector('.remind-hour');
+        const minuteSelect = item.querySelector('.remind-minute');
+        
+        if (hourSelect && minuteSelect) {
+            remindTimes.push({
+                hour: parseInt(hourSelect.value),
+                minute: parseInt(minuteSelect.value)
+            });
+        }
+    });
+    
+    return remindTimes;
+}
+
+/**
+ * 從編輯表單儲存藥物（新增模式）
  */
 async function saveMedicationFromForm() {
     showLoading(true, '正在儲存用藥紀錄...');
@@ -706,12 +971,13 @@ async function saveMedicationFromForm() {
     const medicationCards = document.querySelectorAll('#medication-edit-form-container .medication-card');
     const medicationsPayload = [];
 
-    medicationCards.forEach(card => {
+    medicationCards.forEach((card, index) => {
         const medication = {
             user_id: user_id
         };
         
-        card.querySelectorAll('input[data-field]').forEach(input => {
+        // 收集基本欄位
+        card.querySelectorAll('input[data-field], select[data-field]').forEach(input => {
             const field = input.dataset.field;
             let value = input.value || null;
             
@@ -722,6 +988,10 @@ async function saveMedicationFromForm() {
             medication[field] = value;
         });
         
+        // 收集服藥提醒時間
+        medication.remind_times = collectRemindTimes(index);
+        
+        // 只有填寫藥物名稱的藥物才加入
         if (medication.name && medication.name.trim() !== '') {
             medicationsPayload.push(medication);
         }
@@ -762,7 +1032,82 @@ async function saveMedicationFromForm() {
     }
 }
 
+/**
+ * 從編輯表單更新藥物（編輯模式）
+ */
+async function updateMedicationFromForm() {
+    showLoading(true, '正在更新用藥紀錄...');
+
+    const medicationCard = document.querySelector('#medication-edit-form-container .medication-card');
+    if (!medicationCard) {
+        showToast('找不到要更新的藥物資料', 'error');
+        showLoading(false);
+        return;
+    }
+
+    const medicationId = medicationCard.dataset.medicationId;
+    if (!medicationId) {
+        showToast('無效的藥物 ID', 'error');
+        showLoading(false);
+        return;
+    }
+
+    const medication = {};
+    
+    // 收集基本欄位
+    medicationCard.querySelectorAll('input[data-field], select[data-field]').forEach(input => {
+        const field = input.dataset.field;
+        let value = input.value || null;
+        
+        if ((field === 'start_date' || field === 'end_date') && value === '') {
+            value = null;
+        }
+        
+        medication[field] = value;
+    });
+    
+    // 收集服藥提醒時間
+    medication.remind_times = collectRemindTimes(0); // 編輯模式只有一個藥物，index 為 0
+
+    if (!medication.name || medication.name.trim() === '') {
+        showToast('藥物名稱不能為空！', 'warning');
+        showLoading(false);
+        return;
+    }
+
+    try {
+        console.log('準備更新的資料:', JSON.stringify(medication, null, 2));
+        
+        const res = await fetch(`${API_ROOT}/medications/${medicationId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(medication)
+        });
+
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({ detail: `更新失敗，狀態碼: ${res.status}` }));
+            throw new Error(errorData.detail || '更新失敗');
+        }
+
+        const updatedMedication = await res.json();
+        console.log('成功更新藥物:', updatedMedication);
+        
+        showToast('用藥紀錄已成功更新！', 'success');
+        showPageByView('medication');
+        await loadMedications();
+
+    } catch (error) {
+        console.error('更新藥物失敗:', error);
+        showToast(`更新失敗: ${error.message}`, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
 // 全局函数，供 HTML 内联事件调用
 window.showPageByView = showPageByView;
 window.editMedication = editMedication;
 window.deleteMedication = deleteMedication;
+window.showAddMedicationForm = showAddMedicationForm;
+window.addRemindTime = addRemindTime;
+window.removeRemindTime = removeRemindTime;
